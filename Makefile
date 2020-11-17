@@ -1,17 +1,19 @@
 CC 		 	:= clang
 CFLAGS	:= -fsanitize=address -fno-omit-frame-pointer -Wall -Wextra -O3 -g
 SRC			:= src
-BIN     := mloc
-LIBS		:= -lm
+BIN     := allocTests
+LIBS		:= -lcheck
 OBJS		:=
-ENTITIES:= src/dmalloc.h
+HELPERS := src/helpers.h
 OBJDIR	:= obj
-OBJS :=$(addprefix $(OBJDIR)/,hash.o table.o)
+TEST_DIR:= tests
+OBJS    :=$(addprefix $(OBJDIR)/, header.o headAPI.o alloc.o )
+TOBJS   :=$(addprefix $(OBJDIR)/, allocTests.o)
 
-$(BIN): directories $(OBJS) $(SRC)/$(BIN).c
-	$(CC) $(CFLAGS) $(OBJS) -o $(TARGET) $(LIBS)
+$(BIN): directories $(OBJS) $(TOBJS)
+	$(CC) $(CFLAGS) $(OBJS) -o $(BIN) $(LIBS)
 
-$(OBJDIR) $(OBJDIR)/%.o: $(SRC)/%.c $(SRC)/%.h $(ENTITIES)
+$(OBJDIR) $(OBJDIR)/%.o: $(SRC)/%.c $(SRC)/%.h $(HELPERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 directories:
