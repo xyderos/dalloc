@@ -76,7 +76,7 @@ void insert(head_t *fList, head_t *block) {
 
 }
 
-head_t *split(head_t *block, const sz size, sz used) {
+head_t *split(head_t *block, const sz size, sz* used) {
 
   used            += size;
   sz resize        =  block->size - sizeofHead() - size;
@@ -97,7 +97,7 @@ head_t *split(head_t *block, const sz size, sz used) {
 
 }
 
-head_t* find(head_t* fList, const sz size, const sz used){
+head_t* find(head_t* fList, const sz size, sz* used){
 
   head_t* first = fList;
 
@@ -145,3 +145,44 @@ head_t* find(head_t* fList, const sz size, const sz used){
   }
 }
 
+head_t *merge(head_t* fList,head_t *block, sz* used) {
+
+  head_t *n = nxt(block), *p = prv(block);
+
+  sz ns, x=0;
+
+  if(p != NULL && block->bfree){
+
+    used += sizeofHead();
+
+    detach(fList,p);
+
+    ns = sizeofHead() + 2*block->size;
+
+    block = p;
+
+    block->size = ns;
+
+    x = 1;
+
+  }
+
+  if(n != NULL && block->bfree){
+
+    used += sizeofHead();
+
+    detach(fList,n);
+
+    ns = sizeofHead() + 2*block->size;
+
+    block = n;
+
+    block->size = ns;
+
+    x = 1;
+
+  }
+
+  return block;
+
+}
