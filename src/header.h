@@ -13,3 +13,5 @@ const sz limit(const sz);
 const head_t* magic(const void *const);
 // hide the header
 const void* hide(const void *const);
+//adjust the blocks position
+const sz adapt(const sz);

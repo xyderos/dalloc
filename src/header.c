@@ -28,3 +28,10 @@ const void* hide(const void* const ptr) {
   return (void*)((head_t*) ptr -1);
 
 }
+
+const sz adapt(const sz size) {
+
+  return (size < 8 ) ? min(size) : min(size) + min(0) - size % min(0);
+
+}
+
