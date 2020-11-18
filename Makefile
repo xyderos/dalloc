@@ -1,26 +1,33 @@
 CC 		 	:= clang
-CFLAGS	:= -fsanitize=address -fno-omit-frame-pointer -Wall -Wextra -O3 -g
+CFLAGS	:= -g -fsanitize=address -fno-omit-frame-pointer -Wall -Wextra -O3
+SHARED  := -shared
 SRC			:= src
-BIN     := allocTests
-LIBS		:= -lcheck
-OBJS		:=
-HELPERS := src/helpers.h
+TEST_SRC:= tests
 OBJDIR	:= obj
-TEST_DIR:= tests
-OBJS    :=$(addprefix $(OBJDIR)/, header.o headAPI.o alloc.o )
-TOBJS   :=$(addprefix $(OBJDIR)/, allocTests.o)
+TOBJDIR := tobj
+LIB     := libdalloc.so
+LIBS		:= -lcheck
+TEST    := test
+OBJS    :=$(addprefix $(OBJDIR)/, header.o headAPI.o dalloc.o)
+TOBJS   :=$(addprefix $(TOBJDIR)/, allocTests.o)
 
-$(BIN): directories $(OBJS) $(TOBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o $(BIN) $(LIBS)
+$(LIB): directories $(OBJS)
+	$(CC) $(CFLAGS) $(SHARED) $(OBJS) -o $(LIB)
 
-$(OBJDIR) $(OBJDIR)/%.o: $(SRC)/%.c $(SRC)/%.h $(HELPERS)
+$(OBJDIR) $(OBJDIR)/%.o: $(SRC)/%.c $(SRC)/%.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(TEST): $(TOBJS)
+	$(CC) $(CFLAGS) $(LIB) $(TOBJS) -o $(TEST) $(LIBS) -L . -ldalloc
+
+$(TOBJDIR) $(TOBJDIR)/%.o: $(TEST_SRC)/%.c $(TEST_SRC)/%.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 directories:
-	mkdir -p $(OBJDIR)
+	mkdir -p $(OBJDIR) $(TOBJDIR);
 
 clean:
 	rm -f *~ *.o $(TARGET)
-	rm -rf obj
+	rm -rf obj tobj
 
-all: clean $(BIN)
+all: clean $(LIB) $(TEST)
