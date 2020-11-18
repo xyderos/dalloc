@@ -1,35 +1,35 @@
 #include "header.h"
 
-const sz sizeofHead(){
+sz sizeofHead(){
 
   return sizeof(head_t);
 
 }
 
-const sz min(const sz size){
+sz min(const sz size){
 
   return size > 8 ? size : 8;
 
 }
-const sz limit(const sz size){
+sz limit(const sz size){
 
   return min(0) + sizeofHead() + size;
 
 }
 
-const head_t* magic(const void* const ptr){
+head_t* magic(const void* const ptr){
 
   return (head_t*)ptr - 1;
 
 }
 
-const void* hide(const void* const ptr) {
+void* hide(const void* const ptr) {
 
   return (void*)((head_t*) ptr -1);
 
 }
 
-const sz adapt(const sz size) {
+sz adapt(const sz size) {
 
   return (size < 8 ) ? min(size) : min(size) + min(0) - size % min(0);
 
