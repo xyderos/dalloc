@@ -1,10 +1,8 @@
 #include "headAPI.h"
 
-sz used = 24;
+const u16 ALIGN = 8;
 
-head_t *arena=NULL;
-
-head_t* freeList;
+const sz ARENA = 64 * 1024;
 
 head_t *after(const head_t *const block) {
 
@@ -18,7 +16,7 @@ head_t *before(const head_t *const block) {
 
 }
 
-head_t *initialise() {
+head_t *initialise(head_t* arena) {
 
   // if the arena is already allocated, skip.
   if(!arena) return NULL;
@@ -55,7 +53,7 @@ head_t *initialise() {
 }
 
 //detach a block from the free list
-void detach(head_t *block) {
+void detach(head_t* freeList,head_t *block) {
 
   //if the block doesnt belong to the list return
   if(!block->next || !block->previous){
@@ -77,7 +75,7 @@ void detach(head_t *block) {
 
 }
 
-void insert(head_t *block) {
+void insert(head_t* freeList, head_t *block) {
 
   head_t* p       = freeList->previous;
   block->next     = freeList;
@@ -89,11 +87,11 @@ void insert(head_t *block) {
 
 }
 
-head_t *split(head_t *block, const sz size) {
+head_t *split(head_t *block, const sz size, sz *used) {
 
-  used +=  sizeofHead();
+  *used +=  sizeofHead();
 
-  sz rsize        = block->size - sizeofHead() - size;
+  sz rsize         = block->size - sizeofHead() - size;
   block->size      = rsize;
 
   head_t* splitted = after(block);
@@ -110,15 +108,15 @@ head_t *split(head_t *block, const sz size) {
 
 }
 
-head_t* find(const sz size){
+head_t* find(head_t* freeList,const sz size, sz *used){
 
   head_t* first = freeList;
 
   if(first->size >= size){
 
-    if(first->size > limit(size)) return split(first, size);
+    if(first->size > limit(size)) return split(first, size, used);
 
-    detach(first);
+    detach(freeList,first);
 
     first->free = 0;
 
@@ -138,7 +136,7 @@ head_t* find(const sz size){
       if(n->size >= size){
 
         if(n->size > limit(size))
-          return split(size, used);
+          return split(freeList, size, used);
 
         head_t* aft = after(n);
 
@@ -146,7 +144,7 @@ head_t* find(const sz size){
 
         aft->free = 0;
 
-        detach(n);
+        detach(freeList,n);
 
         return n;
 
@@ -158,7 +156,7 @@ head_t* find(const sz size){
   }
 }
 
-head_t *merge(head_t *block) {
+head_t *merge(head_t* freeList,head_t *block, sz *used) {
 
   head_t *n = after(block), *p = before(block);
 
@@ -168,7 +166,7 @@ head_t *merge(head_t *block) {
 
     used -= sizeofHead();
 
-    detach(p);
+    detach(freeList,p);
 
     ns = sizeofHead() + 2*block->size;
 
@@ -184,7 +182,7 @@ head_t *merge(head_t *block) {
 
     used -= sizeofHead();
 
-    detach(n);
+    detach(freeList,n);
 
     ns = sizeofHead() + 2*block->size;
 
