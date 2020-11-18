@@ -1,4 +1,20 @@
-#include "helpers.h"
+#pragma once
+
+typedef unsigned short u16;
+
+typedef unsigned long sz;
+
+const u16 ALIGN = 8U;
+
+const sz ARENA = 64 * 1024;
+
+typedef struct __attribute__((packed)) _head {
+
+  u16 bfree, bsize, free, size;
+
+  struct _head *next, *previous;
+
+} head_t;
 
 //Helper functions for the headAPI
 

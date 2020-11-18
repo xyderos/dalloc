@@ -1,23 +1,32 @@
 #include "headAPI.h"
 
-head_t *nxt(const head_t *const block) {
+sz used = 24;
+
+head_t *arena=NULL;
+
+head_t* freeList;
+
+head_t *after(const head_t *const block) {
 
   return (head_t*)((char*) block + sizeofHead() + block->size);
 
 }
 
-head_t *prv(const head_t *const block) {
+head_t *before(const head_t *const block) {
 
   return (head_t*)((char*) block - sizeofHead() - block->size);
 
 }
 
-head_t *init(head_t *arena) {
+head_t *initialise() {
 
   // if the arena is already allocated, skip.
   if(!arena) return NULL;
 
+  //actual usage of mmap
   head_t* newBlock = mmap(NULL, ARENA, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS,-1,0);
+
+  printf("Arena is located at: %p \n", newBlock);
 
   //something bad happened
   if(!newBlock) return NULL;
@@ -32,24 +41,28 @@ head_t *init(head_t *arena) {
   newBlock->size  = size;
 
   //marking a sentinel at the end of the arena.
-  head_t* sentinel= nxt(newBlock);
+  head_t* sentinel= after(newBlock);
 
   sentinel->bfree = 1;
   sentinel->bsize = size;
   sentinel->free  = 0;
   sentinel->size  = 0;
 
-  arena = newBlock;
+  arena =(head_t*)newBlock;
 
   return newBlock;
 
 }
 
 //detach a block from the free list
-void detach(head_t *fList, head_t *block) {
+void detach(head_t *block) {
 
-  //if the block doesnt belong to the list return 
-  if(!block->next || !block->previous) return;
+  //if the block doesnt belong to the list return
+  if(!block->next || !block->previous){
+
+    printf("This block doesnt belong to the list. \n");
+    exit(1);
+  }
 
   //temp pointers to the free list
   head_t* n  = block->next;
@@ -60,36 +73,36 @@ void detach(head_t *fList, head_t *block) {
   p->next    = n;
   n->previous= p;
 
-  if(fList == block ) fList = n;
+  if(freeList == block ) freeList = n;
 
 }
 
-void insert(head_t *fList, head_t *block) {
+void insert(head_t *block) {
 
-  head_t* p       = block->previous;
-
-  block->next     = fList;
-  block->previous = fList->previous;
+  head_t* p       = freeList->previous;
+  block->next     = freeList;
+  block->previous = freeList->previous;
   p->next         = block;
-  fList->previous = block;
-  fList           = block;
+
+  freeList->previous = block;
+  freeList           = block;
 
 }
 
-head_t *split(head_t *block, const sz size, sz* used) {
+head_t *split(head_t *block, const sz size) {
 
-  used            += size;
-  sz resize        =  block->size - sizeofHead() - size;
+  used +=  sizeofHead();
 
-  block->size      = resize;
+  sz rsize        = block->size - sizeofHead() - size;
+  block->size      = rsize;
 
-  head_t* splitted = nxt(block);
-  splitted->bsize  = resize;
+  head_t* splitted = after(block);
+  splitted->bsize  = rsize;
   splitted->bfree  = block->free;
   splitted->size   = size;
   splitted->free   = 0;
 
-  head_t* aft      = nxt(splitted);
+  head_t* aft      = after(splitted);
   aft->bsize       = size;
   aft->bfree       = 0;
 
@@ -97,21 +110,21 @@ head_t *split(head_t *block, const sz size, sz* used) {
 
 }
 
-head_t* find(head_t* fList, const sz size, sz* used){
+head_t* find(const sz size){
 
-  head_t* first = fList;
+  head_t* first = freeList;
 
-  if(first->size >- size){
+  if(first->size >= size){
 
-    if(first->size > limit(size)) return split(first, size, used);
+    if(first->size > limit(size)) return split(first, size);
 
-    detach(fList, first);
+    detach(first);
 
     first->free = 0;
 
-    head_t* after = nxt(first);
+    head_t* aft = after(first);
 
-    after->bfree = 0;
+    aft->bfree = 0;
 
     return first;
 
@@ -125,15 +138,15 @@ head_t* find(head_t* fList, const sz size, sz* used){
       if(n->size >= size){
 
         if(n->size > limit(size))
-          return split(fList, size, used);
+          return split(size, used);
 
-        head_t* after = nxt(n);
+        head_t* aft = after(n);
 
-        after->bfree = 0;
+        aft->bfree = 0;
 
-        after->free = 0;
+        aft->free = 0;
 
-        detach(fList,n);
+        detach(n);
 
         return n;
 
@@ -145,17 +158,17 @@ head_t* find(head_t* fList, const sz size, sz* used){
   }
 }
 
-head_t *merge(head_t* fList,head_t *block, sz* used) {
+head_t *merge(head_t *block) {
 
-  head_t *n = nxt(block), *p = prv(block);
+  head_t *n = after(block), *p = before(block);
 
   sz ns, x=0;
 
   if(p != NULL && block->bfree){
 
-    used += sizeofHead();
+    used -= sizeofHead();
 
-    detach(fList,p);
+    detach(p);
 
     ns = sizeofHead() + 2*block->size;
 
@@ -167,22 +180,20 @@ head_t *merge(head_t* fList,head_t *block, sz* used) {
 
   }
 
-  if(n != NULL && block->bfree){
+  if(n != NULL && n->bfree){
 
-    used += sizeofHead();
+    used -= sizeofHead();
 
-    detach(fList,n);
+    detach(n);
 
     ns = sizeofHead() + 2*block->size;
 
-    block = n;
-
     block->size = ns;
+
+    block->free = 1;
 
     x = 1;
 
   }
-
   return block;
-
 }
