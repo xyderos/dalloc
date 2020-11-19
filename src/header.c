@@ -31,7 +31,11 @@ void* hide(const void* const ptr) {
 
 sz adapt(const sz size) {
 
-  return (size < 8 ) ? min(size) : min(size) + min(0) - size % min(0);
+  if(size < min(0))return 8;
+
+  if(size % ALIGN != 0) return size + (size % ALIGN);
+
+  return size;
 
 }
 

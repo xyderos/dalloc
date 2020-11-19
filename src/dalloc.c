@@ -11,7 +11,9 @@ void *__dalloc(const sz size, head_t* arena) {
 
     freeList = initialise(arena);
 
-    freeList->next = freeList->previous = freeList;
+    freeList->next = freeList;
+
+    freeList->previous = freeList;
 
   }
 

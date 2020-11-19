@@ -1,4 +1,5 @@
 #include "headAPI.h"
+#include <stdio.h>
 
 const u16 ALIGN = 8;
 
@@ -24,8 +25,6 @@ head_t *initialise(head_t* arena) {
   //actual usage of mmap
   head_t* newBlock = mmap(NULL, ARENA, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS,-1,0);
 
-  printf("Arena is located at: %p \n", newBlock);
-
   //something bad happened
   if(!newBlock) return NULL;
 
@@ -42,9 +41,7 @@ head_t *initialise(head_t* arena) {
   head_t* sentinel= after(newBlock);
 
   sentinel->bfree = 1;
-  sentinel->bsize = size;
   sentinel->free  = 0;
-  sentinel->size  = 0;
 
   arena =(head_t*)newBlock;
 
@@ -56,22 +53,13 @@ head_t *initialise(head_t* arena) {
 void detach(head_t* freeList,head_t *block) {
 
   //if the block doesnt belong to the list return
-  if(!block->next || !block->previous){
+  if (block->next) block->next->previous = block->previous;
 
-    printf("This block doesnt belong to the list. \n");
-    exit(1);
-  }
+  if(block->previous)block->previous->next = block->next;
 
-  //temp pointers to the free list
-  head_t* n  = block->next;
-  head_t* p  = block->previous;
+  else freeList = block;
 
-  //point the next one of the list to the free list
-  //
-  p->next    = n;
-  n->previous= p;
-
-  if(freeList == block ) freeList = n;
+  block->previous = block->next = NULL;
 
 }
 
