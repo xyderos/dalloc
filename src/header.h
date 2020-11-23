@@ -1,13 +1,22 @@
 #pragma once
 
+#include <sys/mman.h>
+
+#define NULL ((void*)0)
+
+//try to use the u16 to keep info for the neighbour blocks
 typedef unsigned short u16;
 
+//size implementation
 typedef unsigned long sz;
 
+//definition for hte byte allignment
 extern const u16 ALIGN;
 
+//how big is the arena?
 extern const sz ARENA;
 
+//a packed struct to hold some information each block, a header
 typedef struct __attribute__((packed)) _head {
 
   u16 bfree, bsize, free, size;
@@ -16,7 +25,16 @@ typedef struct __attribute__((packed)) _head {
 
 } head_t;
 
-//Helper functions for the headAPI
+// memory module consists of the freelist and the arena
+// TODO: is there a way to use a union to hold all this info?
+typedef struct _memmod {
+
+  head_t* arena;
+  head_t* freeList;
+
+}memMod_t;
+
+//prefer function definitions over defines, type safe and scope is secured.
 
 // sizeof the head, clang will probably inline it (24 bytes)
 sz sizeofHead();
