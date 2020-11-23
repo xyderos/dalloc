@@ -1,98 +1,81 @@
 #include "headAPI.h"
-#include <stdio.h>
 
-//extern definitions
+//define both the align and the size of the arena in the file needed
 const u16 ALIGN = 8;
 
 const sz ARENA = 64 * 1024;
 
-//retrieve the next block of memory from the current block given
 head_t *after(const head_t *const block) {
 
   return (head_t*)((char*) block + sizeofHead() + block->size);
 
 }
 
-//retrieve the previosu block of memory from the current block given
 head_t *before(const head_t *const block) {
 
   return (head_t*)((char*) block - sizeofHead() - block->size);
 
 }
 
-// initialise the arena
-// IDEA put arena and freeLists in a struct? can then have a struct on the main file and wrap the allocators
-head_t *initialise(head_t* arena) {
+void initialise(memMod_t* module) {
 
-  // if the arena is already allocated, skip.
-  if(!arena) return NULL;
+  if(module->arena) return;
 
-  //actual usage of mmap
   head_t* newBlock = mmap(NULL, ARENA, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS,-1,0);
 
-  //something bad happened
-  if(!newBlock) return NULL;
+  if(!newBlock) return;
 
-  sz size = ARENA - 2*sizeofHead();
+  sz size          = ARENA - 2*sizeofHead();
 
-  //set the new blocks of block before and after, as well as the size of the block before and after
-  newBlock->bfree = 0;
-  newBlock->bsize = 0;
-  newBlock->free  = 1;
-  newBlock->size  = size;
+  newBlock->bfree  = 0;
+  newBlock->bsize  = 0;
+  newBlock->free   = 1;
+  newBlock->size   = size;
 
-  //marking a sentinel at the end of the arena.
-  head_t* sentinel= after(newBlock);
+  head_t* sentinel = after(newBlock);
 
-  sentinel->bfree = 1;
-  sentinel->free  = 0;
+  sentinel->bfree  = 1;
+  sentinel->free   = 0;
 
-  arena =(head_t*)newBlock;
+  module->arena    = (head_t*)newBlock;
 
-  return newBlock;
+  module->freeList = newBlock;
 
 }
 
-//detach a block from the free list
-void detach(head_t* freeList,head_t *block) {
+// detach a block from the linked list.
+void detach(memMod_t* module, head_t *block) {
 
-  //if the next block of the block is not NULL, make its
-  //previous pointer point to the previous block of the current block.
   if (block->next) block->next->previous = block->previous;
 
-  //same as the 1st stamement but in reverse order(for the previous block).
   if(block->previous)block->previous->next = block->next;
 
-  //the block can be detached
-  else freeList = block;
-
-  block->previous = block->next = NULL;
+  else module->freeList = block;
 
 }
 
+// insert a block on the head of the linked list with the free nodes.
+void _insert(head_t* freeList, head_t *block) {
 
-// insert a block of memory into the freeList the classic way,
-// just like inserting a node in a linked list.
-void insertInHead(head_t* freeList, head_t *block) {
+  block->next              = freeList;
 
-  block->next     = freeList;
+  block->previous          = freeList->previous;
 
-  block->previous = NULL;
+  freeList->previous->next = block;
 
-  if(freeList) freeList->previous = block;
- 
-  freeList = block;
+  freeList->previous       = block;
 
+  freeList                 = block;
 
 }
 
-void insertInPlace(head_t *freeList, head_t* block) {
+void insert(head_t *freeList, head_t* block) {
 
   head_t* tptr = freeList;
 
-  if(!tptr) insert(freeList, block);
+  if(!tptr) _insert(freeList, block);
 
-  else if(block->size <= tptr->size) insert(freeList,block);
+  else if(block->size <= tptr->size) _insert(freeList,block);
 
   else{
 
@@ -110,54 +93,45 @@ void insertInPlace(head_t *freeList, head_t* block) {
       tptr->next = block;
 
     }
-
   }
-
 }
 
-head_t *find(head_t* arena, head_t *freeList, const sz size) {
+//find the next block available from the free list
+head_t *find(memMod_t* module, const sz size) {
 
-  if(!arena) freeList = initialise(arena);
+  //iterator
+  head_t* tmp = module->freeList;
 
-  //something really bad happened here
-  if(!freeList) return NULL;
+  //helper variable to ensure we check the first block
+  //in the linked list once(without flip it would stop at the 1st iteration)
+  //smaller more compact code.
+  unsigned int flip = 0;
 
-  head_t* tmp = freeList;
+  for(; tmp != module->freeList && flip == 1; tmp = tmp->next){
 
-  for(; tmp == NULL; tmp = tmp->next){
+    //fake the for loop to check the 1st element in the 1st iteration
+    if(flip == 0) flip = 1;
 
     if(tmp->size >= size){
-      if(tmp->size >= limit(size)){
 
-        head_t* offset = split(tmp,size);
+      if(tmp->size > limit(size)) return split(tmp,size);
 
-        tmp->free = 0;
+      detach(module, tmp);
 
-        after(tmp)->free = 0;
+      tmp->free = 0;
 
-        detach(freeList,tmp);
+      after(tmp)->bfree = 0;
 
-        insert(freeList,offset);
+      return tmp;
 
-        return tmp;
-
-      }
-      else{
-
-        tmp->free = 0;
-
-        detach(freeList,tmp);
-
-        return tmp;
-      }
     }
   }
   return NULL;
 }
 
+// split a block based on its size
 head_t *split(head_t *block, const sz size) {
 
-  //
   sz rsize             = block->size - sizeofHead() - size;
   block->size          = size;
 
@@ -171,20 +145,19 @@ head_t *split(head_t *block, const sz size) {
   aft->bsize       = rsize;
 
   return splitted;
+
 }
 
-
-//merge a block in the freeList
-head_t *merge(head_t* freeList,head_t *block) {
+head_t *merge(memMod_t* module,head_t *block) {
 
   //get the 2 blocks adjacent to out current block
   head_t *n = after(block), *p = before(block);
 
   sz newSize;
 
-  if(block->bfree){
+  if(p && block->bfree){
 
-    detach(freeList,p);
+    detach(module,p);
 
     newSize            = sizeofHead() + block->size + p->size;
     n->bsize           = newSize;
@@ -195,13 +168,10 @@ head_t *merge(head_t* freeList,head_t *block) {
 
   if(n->free){
 
-    detach(freeList,n);
+    detach(module,n);
 
     newSize            = sizeofHead() + block->size + n->size;
     block->size        = newSize;
-    //update the one next to the after's memory info about the previous block
-    head_t* theNextOne = after(n);
-    theNextOne->bsize  = newSize;
     block->size        = newSize;
     block->free        = 1;
 
@@ -210,3 +180,4 @@ head_t *merge(head_t* freeList,head_t *block) {
   return block;
 
 }
+

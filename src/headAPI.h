@@ -1,28 +1,30 @@
 #include "header.h"
-#include <stdlib.h>
-#include <sys/mman.h>
 
 // API for the head_t
-head_t*       after(const head_t *const);
 
-head_t*       before(const head_t *const);
 
-// arena could be passed as a global variable and the result will
-// be assigned into the free list.
-head_t*       initialise(head_t*);
+// return the next block of the block given in the function.
+head_t* after     (const head_t *const);
 
-//needs the freeList as an argument, freeList can be a global in the dalloc.c file
-void          detach(head_t*, head_t*);
+// return the previous block of the block given in the function.
+head_t* before    (const head_t *const);
 
-void          insertInHead(head_t*, head_t*);
+// initialise a memory module
+// TODO use the constructor attribute to initialise the arena
+// or the multiple arenas before the functions are called?
+void    initialise(memMod_t*);
 
-void          insertInPlace(head_t*, head_t*);
+// detach a block from the free list that exists in the current memory module
+void    detach    (memMod_t*, head_t*);
 
-head_t*       split(head_t *, const sz);
+// return a proper block from the current memory module
+head_t* find      (memMod_t *, const sz);
 
-//needs both the arena and the freelist
-head_t*       find(head_t*,head_t*,const sz);
+void insert(head_t*, head_t*);
 
-//needs the freeList
-head_t*       merge(head_t*,head_t*);
+// split a block into 2 parts that are needed
+head_t* split     (head_t*, const sz);
+
+//merge adjacent blocks
+head_t* merge     (memMod_t*,head_t*);
 
