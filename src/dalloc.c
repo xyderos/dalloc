@@ -1,17 +1,24 @@
 #include "dalloc.h"
 
-sz used = 24;
+//make the module visible outside the program
+memMod_t* module;
 
-head_t* freeList;
+static int flag = 0;
 
-//wrapper function for dalloc(size)
-void *__dalloc(head_t* arena, const sz size) {
+void *__dalloc(memMod_t* module, const sz size) {
+
+  if(flag == 1){
+
+    module->arena = NULL;
+
+    flag = 1;
+  }
 
   if(size < 0) return NULL;
 
   sz adapted = adapt(size);
 
-  head_t* block = find(arena,freeList, adapted);
+  head_t* block = find(module, adapted);
 
   if(!block) return NULL;
 
@@ -21,14 +28,12 @@ void *__dalloc(head_t* arena, const sz size) {
 
 void *dalloc(const sz size) {
 
-  static head_t *arena =NULL;
-
-  return __dalloc(arena, size);
+  return __dalloc(module, size);
 
 }
 
 //wrapper function dfree(pointer)
-void __dfree(const void *const pointer) {
+void __dfree(memMod_t* module, const void *const pointer) {
 
   if(!pointer) return;
 
@@ -40,11 +45,11 @@ void __dfree(const void *const pointer) {
 
   aft->bfree    = 1;
 
-  insert(freeList,block);
+  insert(module->freeList,block);
 }
 
 void dfree(const void* const pointer){
 
-  __dfree(pointer);
+  __dfree(module,pointer);
 
 }
