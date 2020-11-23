@@ -1,5 +1,7 @@
 #include "header.h"
 
+//no need to use any keywords for now, clang will inline most of the things in this file.
+
 sz sizeofHead(){
 
   return sizeof(head_t);
@@ -33,7 +35,7 @@ sz adapt(const sz size) {
 
   if(size < min(0))return 8;
 
-  if(size % ALIGN != 0) return size + (size % ALIGN);
+  if(size % ALIGN != 0) return size + (ALIGN - (size % ALIGN));
 
   return size;
 
