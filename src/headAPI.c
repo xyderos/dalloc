@@ -1,22 +1,27 @@
 #include "headAPI.h"
 #include <stdio.h>
 
+//extern definitions
 const u16 ALIGN = 8;
 
 const sz ARENA = 64 * 1024;
 
+//retrieve the next block of memory from the current block given
 head_t *after(const head_t *const block) {
 
   return (head_t*)((char*) block + sizeofHead() + block->size);
 
 }
 
+//retrieve the previosu block of memory from the current block given
 head_t *before(const head_t *const block) {
 
   return (head_t*)((char*) block - sizeofHead() - block->size);
 
 }
 
+// initialise the arena
+// IDEA put arena and freeLists in a struct? can then have a struct on the main file and wrap the allocators
 head_t *initialise(head_t* arena) {
 
   // if the arena is already allocated, skip.
@@ -28,7 +33,6 @@ head_t *initialise(head_t* arena) {
   //something bad happened
   if(!newBlock) return NULL;
 
-  //return the size of the arena
   sz size = ARENA - 2*sizeofHead();
 
   //set the new blocks of block before and after, as well as the size of the block before and after
@@ -52,134 +56,157 @@ head_t *initialise(head_t* arena) {
 //detach a block from the free list
 void detach(head_t* freeList,head_t *block) {
 
-  //if the block doesnt belong to the list return
+  //if the next block of the block is not NULL, make its
+  //previous pointer point to the previous block of the current block.
   if (block->next) block->next->previous = block->previous;
 
+  //same as the 1st stamement but in reverse order(for the previous block).
   if(block->previous)block->previous->next = block->next;
 
+  //the block can be detached
   else freeList = block;
 
   block->previous = block->next = NULL;
 
 }
 
-void insert(head_t* freeList, head_t *block) {
 
-  head_t* p       = freeList->previous;
+// insert a block of memory into the freeList the classic way,
+// just like inserting a node in a linked list.
+void insertInHead(head_t* freeList, head_t *block) {
+
   block->next     = freeList;
-  block->previous = freeList->previous;
-  p->next         = block;
 
-  freeList->previous = block;
-  freeList           = block;
+  block->previous = NULL;
 
-}
+  if(freeList) freeList->previous = block;
+ 
+  freeList = block;
 
-head_t *split(head_t *block, const sz size, sz *used) {
-
-  *used +=  sizeofHead();
-
-  sz rsize         = block->size - sizeofHead() - size;
-  block->size      = rsize;
-
-  head_t* splitted = after(block);
-  splitted->bsize  = rsize;
-  splitted->bfree  = block->free;
-  splitted->size   = size;
-  splitted->free   = 0;
-
-  head_t* aft      = after(splitted);
-  aft->bsize       = size;
-  aft->bfree       = 0;
-
-  return splitted;
 
 }
 
-head_t* find(head_t* freeList,const sz size, sz *used){
+void insertInPlace(head_t *freeList, head_t* block) {
 
-  head_t* first = freeList;
+  head_t* tptr = freeList;
 
-  if(first->size >= size){
+  if(!tptr) insert(freeList, block);
 
-    if(first->size > limit(size)) return split(first, size, used);
+  else if(block->size <= tptr->size) insert(freeList,block);
 
-    detach(freeList,first);
-
-    first->free = 0;
-
-    head_t* aft = after(first);
-
-    aft->bfree = 0;
-
-    return first;
-
-  }
   else{
 
-    head_t* n = first->next;
+    //traverse untill we find the correct spot in the list
+    while(tptr && (block->size > tptr->next->size)) tptr = tptr->next;
 
-    while (n != first) {
+    block->next     = tptr->next;
+    block->previous = tptr;
 
-      if(n->size >= size){
+    if(!tptr->next) tptr->next = block;
 
-        if(n->size > limit(size))
-          return split(freeList, size, used);
+    else {
 
-        head_t* aft = after(n);
+      tptr->next->previous = block;
+      tptr->next = block;
 
-        aft->bfree = 0;
-
-        aft->free = 0;
-
-        detach(freeList,n);
-
-        return n;
-
-      }
-
-      n = n->next;
     }
-    return NULL;
+
   }
+
 }
 
-head_t *merge(head_t* freeList,head_t *block, sz *used) {
+head_t *find(head_t* arena, head_t *freeList, const sz size) {
 
+  if(!arena) freeList = initialise(arena);
+
+  //something really bad happened here
+  if(!freeList) return NULL;
+
+  head_t* tmp = freeList;
+
+  for(; tmp == NULL; tmp = tmp->next){
+
+    if(tmp->size >= size){
+      if(tmp->size >= limit(size)){
+
+        head_t* offset = split(tmp,size);
+
+        tmp->free = 0;
+
+        after(tmp)->free = 0;
+
+        detach(freeList,tmp);
+
+        insert(freeList,offset);
+
+        return tmp;
+
+      }
+      else{
+
+        tmp->free = 0;
+
+        detach(freeList,tmp);
+
+        return tmp;
+      }
+    }
+  }
+  return NULL;
+}
+
+head_t *split(head_t *block, const sz size) {
+
+  //
+  sz rsize             = block->size - sizeofHead() - size;
+  block->size          = size;
+
+  head_t* splitted     = after(block);
+  splitted->bsize      = size;
+  splitted->bfree      = block->free;
+  splitted->size       = rsize;
+  splitted->free       = 1;
+
+  head_t* aft      = after(splitted);
+  aft->bsize       = rsize;
+
+  return splitted;
+}
+
+
+//merge a block in the freeList
+head_t *merge(head_t* freeList,head_t *block) {
+
+  //get the 2 blocks adjacent to out current block
   head_t *n = after(block), *p = before(block);
 
-  sz ns, x=0;
+  sz newSize;
 
-  if(p != NULL && block->bfree){
-
-    used -= sizeofHead();
+  if(block->bfree){
 
     detach(freeList,p);
 
-    ns = sizeofHead() + 2*block->size;
-
-    block = p;
-
-    block->size = ns;
-
-    x = 1;
+    newSize            = sizeofHead() + block->size + p->size;
+    n->bsize           = newSize;
+    p->size            = newSize;
+    block              = p;
 
   }
 
-  if(n != NULL && n->bfree){
-
-    used -= sizeofHead();
+  if(n->free){
 
     detach(freeList,n);
 
-    ns = sizeofHead() + 2*block->size;
-
-    block->size = ns;
-
-    block->free = 1;
-
-    x = 1;
+    newSize            = sizeofHead() + block->size + n->size;
+    block->size        = newSize;
+    //update the one next to the after's memory info about the previous block
+    head_t* theNextOne = after(n);
+    theNextOne->bsize  = newSize;
+    block->size        = newSize;
+    block->free        = 1;
 
   }
+
   return block;
+
 }

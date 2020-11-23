@@ -5,23 +5,13 @@ sz used = 24;
 head_t* freeList;
 
 //wrapper function for dalloc(size)
-void *__dalloc(const sz size, head_t* arena) {
-
-  if(!arena){
-
-    freeList = initialise(arena);
-
-    freeList->next = freeList;
-
-    freeList->previous = freeList;
-
-  }
+void *__dalloc(head_t* arena, const sz size) {
 
   if(size < 0) return NULL;
 
   sz adapted = adapt(size);
 
-  head_t* block = find(freeList, adapted, &used);
+  head_t* block = find(arena,freeList, adapted);
 
   if(!block) return NULL;
 
@@ -33,7 +23,7 @@ void *dalloc(const sz size) {
 
   static head_t *arena =NULL;
 
-  return __dalloc(size, arena);
+  return __dalloc(arena, size);
 
 }
 
@@ -50,8 +40,7 @@ void __dfree(const void *const pointer) {
 
   aft->bfree    = 1;
 
-  insert(freeList,merge(freeList,block,&used));
-
+  insert(freeList,block);
 }
 
 void dfree(const void* const pointer){
