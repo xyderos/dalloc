@@ -1,5 +1,7 @@
 #include "allocTests.h"
 
+#include <stdio.h>
+
 int main() {
 
   int failed = 0;
@@ -15,7 +17,5 @@ int main() {
   srunner_free(sr);
 
   return (failed ==0)? 0 : 1;
-
-
 
 }

@@ -11,9 +11,11 @@ START_TEST(test_memory_allocation) {
 
     while(blocks != 0){
 
-      test = dalloc(120);
+      test = dalloc(sizeof(int));
 
-      ck_assert_ptr_eq(test,NULL);
+      test =(void*)10;
+
+      ck_assert_ptr_ne(test,NULL);
 
       dfree(test);
 
